@@ -1,0 +1,175 @@
+---
+- name: INSTALL WORDPRESS
+  hosts: serverx
+  gather_facts: false
+  remote_user: root
+  vars:
+    ansible_password: redhat
+  
+  tasks:
+
+    - ping:
+
+    - name: YUM INSTALL
+      yum:
+        name: "{{ item.name }}"
+        state: present
+      loop:
+        - { name: httpd }
+        - { name: mariadb }
+        - { name: mariadb-server }
+        - { name: php }
+        - { name: php-common }
+        - { name: php-mysql }
+        - { name: php-gd }
+        - { name: php-xml }
+        - { name: php-mbstring }
+        - { name: php-mcrypt }
+        - { name: php-xmlrpc }
+        - { name: unzip }
+        - { name: wget }
+        - { name: python-pip } 
+    
+    - name: START SERVICES
+      service:
+        name: "{{ item.name }}"
+        enabled: yes
+        state: started 
+      loop:
+        - { name: httpd }
+        - { name: mariadb }
+   
+    - name: FIREWALLD ADD HTTP SERVICE
+      firewalld:
+        service: http
+        state: enabled
+        permanent: yes
+        immediate: yes
+
+    - name: INSTALL MYSQL
+      pip: 
+        name: PyMySQL
+        state: latest
+
+    - name: BLOCK SET PSSWD
+      block:
+       - debug:
+           msg: set password for admin
+       - name: SET PASSWORD FOR MYSQLADMIN
+         mysql_user:
+           name: root
+           password: abc
+           state: present
+           login_user: root
+           login_password: abc
+      rescue:
+        - debug:
+           msg: already set psswd for admin
+      
+
+    - name: DELETE USER
+      mysql_user:
+        user: ""
+        state: absent
+        login_password: abc
+        login_user: root
+                    
+    - name: DELETE test DATABASE
+      mysql_db:
+        db: test
+        state: absent
+        login_password: abc
+        login_user: root
+   
+    - name: CREATE DATABASE wordpress
+      mysql_db:
+        login_user: root
+        login_password: abc
+        name: wordpress
+        state: present
+
+    - name: grant 
+      block:
+        - name: GRANT PRIVILEGS ON wordpress
+          mysql_user:      
+            name: ansible
+            password: mypassword
+            login_user: root
+            login_password: abc
+            priv: 'wordpress.*:ALL'
+      rescue:
+        - debug:
+            msg: grant failed
+
+    - name: download wordpress
+      get_url: 
+         url: https://wordpress.org/wordpress-5.0.tar.gz
+         dest: /tmp/wordpress.tar.gz
+
+    - name: unarchive
+      unarchive:
+         src: /tmp/wordpress.tar.gz
+         dest: /var/www/html
+         remote_src: yes
+
+    - name: chown
+      file:
+        path: /var/www/html/wordpress
+        owner: apache
+        group: apache
+   
+    - name: chmod 755
+      file:
+        dest: /var/www/html/wordpress
+        mode: 755
+
+    - name: mkdir
+      file:
+        dest: /var/www/html/wordpress/wp-content/uploads
+        state: directory
+    
+    - name: chown apache
+      file:
+        dest: /var/www/html/wordpress/wp-content/uploads
+        group: apache
+
+    - name: mv
+      command: mv /var/www/html/wordpress/wp-config-sample.php /var/www/html/wordpress/wp-config.php
+
+    - name: vim
+      lineinfile:
+        path: /var/www/html/wordpress/wp-config.php
+        regexp: 'wordpress'
+        line: define('DB_NAME', 'wordpress');
+
+    - name: vim
+      lineinfile:
+        path: /var/www/html/wordpress/wp-config.php
+        regexp: 'database_name_here'
+        line: define('DB_NAME', 'wordpress');
+
+    - name: vim
+      lineinfile:
+        path: /var/www/html/wordpress/wp-config.php
+        regexp: 'username_here'
+        line: define('DB_USER', 'ansible');
+
+  
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+ 
